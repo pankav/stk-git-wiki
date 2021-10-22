@@ -42,6 +42,8 @@ module STKWebsite
                             page_translations[basename] = [ lang ]
                         end
                     end
+                else
+                    page.data['layout'] = nil
                 end
             end
             for page in site.pages do

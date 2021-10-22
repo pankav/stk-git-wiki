@@ -1,6 +1,6 @@
 require 'json'
 require 'csv'
-require 'poparser'
+require_relative 'po_utils'
 
 module STKWebsite
     class Translate < Liquid::Tag
@@ -23,28 +23,10 @@ module STKWebsite
             lang = context['page']['lang']
             if lang == 'en' then
                 pot_file = context['site'].data['po']['stk-website']
-                exists = false
-                pot_file.find_all do |entry|
-                    if entry.msgid.str.match(@string) then
-                        exists = true
-                        break
-                    end
-                end
-                if not exists
-                    entry = { msgid: @string, msgstr: "" }
-                    if @comment != '' then
-                        entry[:translator_comment] = @comment
-                    end
-                    pot_file.add(entry)
-                end
+                PoUtils::add_string_to_pot(pot_file, @string, @comment)
             else
-                po = context['site'].data['po'][lang]
-                if po then
-                    strings = po.search_in(:msgid, @string)
-                    if strings.length > 0 and strings[0].msgstr.to_s != '' then
-                        translation = strings[0].msgstr.to_s
-                    end
-                end
+                translation = PoUtils::po_translate(
+                    context['site'].data['po'][lang], @string)
             end
             translations = context['site'].data['js_translations']
             if @js_translation then

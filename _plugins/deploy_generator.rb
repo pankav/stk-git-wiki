@@ -1,4 +1,5 @@
 require 'poparser'
+require_relative 'po_utils'
 
 module STKWebsite
     class DeployGenerator < Jekyll::Generator
@@ -19,11 +20,16 @@ module STKWebsite
                 supported_languages.push(lang)
             end
             page_translations = {}
+            extra_page = []
             site.pages.reverse_each do |page|
-                if page.path.start_with?('wiki/') and File.extname(page.name) == '.md' then
+            next if not page.path.start_with?('wiki/') and
+            not page.path.start_with?('wiki_untranslated/')
+                basename = File.basename(page.name, '.md')
+                if File.extname(page.name) != '.md' then
+                    page.data['layout'] = nil
+                elsif page.path.start_with?('wiki/') then
                     # Remove first 5 characters and extract string before /
                     lang = page.path[5..].split('/')[0]
-                    basename = File.basename(page.name, '.md')
                     if supported_languages.include? lang then
                         page.data['lang'] = lang
                         page.data['permalink'] = '/' + lang + '/:basename'
@@ -43,9 +49,37 @@ module STKWebsite
                         end
                     end
                 else
-                    page.data['layout'] = nil
+                    # Handle wiki_untranslated pages
+                    page.data['lang'] = 'en'
+                    if page.content.include? '{%translate ' then
+                        # If any translate liquid tag is included, expand the
+                        # page to all supported languages, translate the title
+                        # too
+                        pot_file = site.data['po']['stk-website']
+                        orig_title = page.data['title']
+                        PoUtils::add_string_to_pot(pot_file, orig_title, '')
+                        for lang in supported_languages do
+                            new_page = page.dup
+                            new_page.data = page.data.dup
+                            translated_title =
+                                PoUtils::po_translate(site.data['po'][lang],
+                                orig_title)
+                            if translated_title != '' then
+                                new_page.data['title'] = translated_title
+                            end
+                            new_page.data['lang'] = lang
+                            new_page.data['permalink'] = '/' + lang + '/:basename'
+                            extra_page.push(new_page)
+                            if page_translations.include?(basename) then
+                                page_translations[basename].push(lang)
+                            else
+                                page_translations[basename] = [ lang ]
+                            end
+                        end
+                    end
                 end
             end
+            site.pages.concat(extra_page)
             for page in site.pages do
                 if File.extname(page.name) != '.md' then
                     next

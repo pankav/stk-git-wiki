@@ -11,21 +11,29 @@ module STKWebsite
             Dir.foreach('_translations') do |po_file|
             next if po_file == '.' or po_file == '..' or po_file == 'en.po' or po_file == 'stk-website.pot'
                 lang = File.basename(po_file, '.po')
+                po = PoParser.parse_file('_translations/' + po_file)
+                if po.stats[:translated] == 0 then
+                    next
+                end
+                site.data['po'][lang] = po
                 supported_languages.push(lang)
-                site.data['po'][lang] = PoParser.parse_file('_translations/' + po_file)
             end
             page_translations = {}
-            for page in site.pages do
+            site.pages.reverse_each do |page|
                 if page.path.start_with?('wiki/') and File.extname(page.name) == '.md' then
-                    lang = 'en'
-                    page.data['lang'] = lang
+                    # Remove first 5 characters and extract string before /
+                    lang = page.path[5..].split('/')[0]
                     basename = File.basename(page.name, '.md')
-                    for supported_language in supported_languages do
-                        if page.path == 'wiki/' + supported_language + '/' + page.name then
-                            lang = page.data['lang'] = supported_language
-                            page.data['permalink'] = '/' + lang + '/:basename'
-                            break
-                        end
+                    if supported_languages.include? lang then
+                        page.data['lang'] = lang
+                        page.data['permalink'] = '/' + lang + '/:basename'
+                    elsif not lang.include? '.' then
+                        # Remove page in language folder which doesn't have po file
+                        site.pages.delete(page)
+                        next
+                    else
+                        lang = 'en'
+                        page.data['lang'] = lang
                     end
                     if lang != 'en' then
                         if page_translations.include?(basename) then
